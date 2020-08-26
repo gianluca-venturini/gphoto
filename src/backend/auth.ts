@@ -5,7 +5,9 @@ import { Core } from './core';
 import { TOKEN_PATH, PORT, CREDENTIALS_PATH } from './env';
 
 /** If modifying these scopes, delete token.json. */
-const SCOPES = ['https://www.googleapis.com/auth/photoslibrary'];
+const SCOPES = [
+    'https://www.googleapis.com/auth/photoslibrary'
+];
 
 interface Credentials {
     web: {

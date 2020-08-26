@@ -30,8 +30,10 @@
     "webpack-node-externals": "^1.7.2"
   },
   "dependencies": {
+    "@types/sqlite3": "^3.1.6",
     "bluebird": "^3.7.2",
     "express": "^4.17.1",
-    "googleapis": "^59.0.0"
+    "googleapis": "^59.0.0",
+    "sqlite3": "^5.0.0"
   }
 }
