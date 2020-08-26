@@ -66,7 +66,7 @@ export async function touchGPhotoMediaItems(core: Core) {
             retry: true,
         });
 
-        var statement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, filename) VALUES (?, ?, ?, ?, ?, ?)");
+        var statement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
         response.data.mediaItems.forEach(mediaItem => {
             statement.run(
                 mediaItem.id,

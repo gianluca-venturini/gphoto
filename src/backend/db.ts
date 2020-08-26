@@ -31,7 +31,15 @@ function ensureDbTables(core: Core) {
             productUrl TEXT,
             baseUrl TEXT,
             mimeType TEXT,
-            filename TEXT
+            fileName TEXT
+        )
+    `);
+    core.db.run(`
+        CREATE TABLE IF NOT EXISTS LocalMediaItems (
+            path TEXT PRIMARY KEY,
+            fileName TEXT,
+            albumName TEXT,
+            remotePresent BOOLEAN
         )
     `);
 }
