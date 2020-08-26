@@ -7,9 +7,6 @@ import { touchLocalMediaItems } from './local';
 
 async function start() {
     const core = initCore();
-    core.app.listen(PORT, () => {
-        console.log(`Server listening on port ${PORT}`);
-    });
     await ensureDbConnect(core);
     await ensureAuthorize(core);
     await touchGPhotoAlbums(core);
