@@ -15,13 +15,23 @@ export async function ensureDbConnect(core: Core): Promise<void> {
 function ensureDbTables(core: Core) {
     core.db.run(`
         CREATE TABLE IF NOT EXISTS RemoteAlbums (
-            id TEXT,
+            id TEXT PRIMARY KEY,
             title TEXT,
             productUrl TEXT,
             coverPhotoBaseUrl TEXT,
             coverPhotoMediaItemId TEXT,
             isWriteable BOOLEAN,
             mediaItemsCount INTEGER
+        )
+    `);
+    core.db.run(`
+        CREATE TABLE IF NOT EXISTS RemoteMediaItems (
+            id TEXT PRIMARY KEY,
+            description TEXT,
+            productUrl TEXT,
+            baseUrl TEXT,
+            mimeType TEXT,
+            filename TEXT
         )
     `);
 }
