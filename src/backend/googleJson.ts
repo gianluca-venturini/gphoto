@@ -67,5 +67,6 @@ export interface MediaItemsCreateBatchResponse {
         status: {
             message: string;
         }
-    }[]
+        uploadToken: string;
+    }[];
 } 

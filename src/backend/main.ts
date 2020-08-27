@@ -12,8 +12,9 @@ async function start() {
     await touchGPhotoMediaItems(core);
     await touchLocalMediaItems(core);
     await ensureGPhotoAlbumsCreated(core);
-    // TODO(gianluca): load multiple batches
     await ensureGPhotoMediaItemsCreated(core);
+    console.log('Exiting with success');
+    process.exit(0);
 }
 
 start();

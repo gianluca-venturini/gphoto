@@ -23,7 +23,7 @@ export async function touchGPhotoAlbums(core: Core) {
             retry: true,
         });
 
-        var statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount) VALUES (?, ?, ?, ?, ?, ?, ?)");
         response.data.albums?.forEach(album => {
             statement.run(
                 album.id,
@@ -67,7 +67,7 @@ export async function touchGPhotoMediaItems(core: Core) {
             retry: true,
         });
 
-        var statement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
+        const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
         response.data.mediaItems.forEach(mediaItem => {
             statement.run(
                 mediaItem.id,
@@ -115,7 +115,7 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
     });
     console.log(`need to create ${albumNames.length} albums`);
 
-    var statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount) VALUES (?, ?, ?, ?, ?, ?, ?)");
+    const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
     for (const albumName of albumNames) {
         const response = await core.oAuth2Client.request<AlbumResponse>({
@@ -146,7 +146,17 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
     console.log('all G Photo Albums created successfully');
 }
 
-export async function ensureGPhotoMediaItemsCreated(core: Core): Promise<{ numSuccess: number, numErrors: number }> {
+export async function ensureGPhotoMediaItemsCreated(core: Core): Promise<void> {
+    let finished = false;
+    while (!finished) {
+        const { numErrors, numSuccess } = await ensureGPhotoMediaItemsCreatedBatch(core);
+        if (numSuccess + numErrors === 0) {
+            finished = true;
+        }
+    }
+}
+
+async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSuccess: number, numErrors: number }> {
     console.log('ensure G Photo Media items batch created');
     let numSuccess = 0;
     let numErrors = 0;
@@ -167,8 +177,9 @@ export async function ensureGPhotoMediaItemsCreated(core: Core): Promise<{ numSu
                 FROM RemoteMediaItems
                 WHERE description IS NOT NULL
             )
+                AND lastError IS NULL
             ORDER BY path
-            LIMIT 1
+            LIMIT 10
             `,
             (err, row) => {
                 toUpload.push(row);
@@ -212,11 +223,16 @@ export async function ensureGPhotoMediaItemsCreated(core: Core): Promise<{ numSu
 
     // Group items per album. Since are sorted by path in the DB query the number of albums should be minimized
     const albums = new Map<string, { path: string; uploadToken: string; fileName: string; }[]>();
+
+    // Used to lookup the path having the uploadToken
+    const uploadTokenToPath = new Map<string, string>();
+
     uploadedItems.forEach(({ path, uploadToken, fileName, albumId }) => {
         if (!albums.has(albumId)) {
             albums.set(albumId, []);
         }
         albums.get(albumId).push({ path, uploadToken, fileName });
+        uploadTokenToPath.set(uploadToken, path);
     });
 
     for (let [albumId, items] of albums) {
@@ -238,14 +254,30 @@ export async function ensureGPhotoMediaItemsCreated(core: Core): Promise<{ numSu
             },
             retry: true,
         });
+        const successStatement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
+        const errorStatement = core.db.prepare("UPDATE LocalMediaItems SET lastError = ? WHERE path = ?");
+
         response.data.newMediaItemResults.forEach(itemResult => {
             if (itemResult.status.message === 'Success') {
                 numSuccess += 1;
+                successStatement.run(
+                    itemResult.mediaItem.id,
+                    itemResult.mediaItem.description,
+                    itemResult.mediaItem.productUrl,
+                    '', // TODO: add the baseUrl or remove it from the DB schema
+                    itemResult.mediaItem.mimeType,
+                    itemResult.mediaItem.filename
+                );
             } else {
                 numErrors += 1;
+                errorStatement.run(
+                    itemResult.status.message,
+                    uploadTokenToPath.get(itemResult.uploadToken),
+                );
             }
         })
-        console.log(response);
+        errorStatement.finalize();
+        successStatement.finalize();
     }
     console.log('All media items in batch created');
 
