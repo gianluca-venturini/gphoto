@@ -1,6 +1,7 @@
 import { Core } from "./core";
 import { DATA_PATH } from "./env";
 import { promises as fs } from 'fs';
+import { isFileSupported } from "./media";
 
 export async function touchLocalMediaItems(core: Core) {
     console.log('touch local media items');
@@ -17,8 +18,12 @@ export async function touchLocalMediaItems(core: Core) {
             if (stat.isDirectory()) {
                 directories.push(entryPath);
             } else if (stat.isFile()) {
-                const albumName = directoryPathToAlbum(directory);
-                touchLocalMediaItem(entryPath, albumName, entry, core);
+                if (isFileSupported(entry)) {
+                    const albumName = directoryPathToAlbum(directory);
+                    touchLocalMediaItem(entryPath, albumName, entry, core);
+                } else {
+                    console.log(`unsupported file: ${entry}`);
+                }
             }
         }
     }
@@ -31,12 +36,15 @@ function directoryPathToAlbum(directory: string) {
 }
 
 function touchLocalMediaItem(entryPath: string, albumName: string, fileName: string, core: Core) {
-    var statement = core.db.prepare("INSERT OR REPLACE INTO LocalMediaItems(path, fileName, albumName, remotePresent) VALUES (?, ?, ?, ?)");
+    var statement = core.db.prepare("INSERT OR REPLACE INTO LocalMediaItems(path, fileName, albumName) VALUES (?, ?, ?)");
     statement.run(
         entryPath,
         fileName,
-        albumName,
-        false
+        albumName
     );
     statement.finalize();
+}
+
+export async function readFileContent(path: string): Promise<Buffer> {
+    return fs.readFile(path);
 }

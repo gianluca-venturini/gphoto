@@ -34,12 +34,13 @@ function ensureDbTables(core: Core) {
             fileName TEXT
         )
     `);
+    // TODO: remove `albumId` since it's not used
     core.db.run(`
         CREATE TABLE IF NOT EXISTS LocalMediaItems (
             path TEXT PRIMARY KEY,
             fileName TEXT,
             albumName TEXT,
-            remotePresent BOOLEAN
+            albumId TEXT
         )
     `);
 }

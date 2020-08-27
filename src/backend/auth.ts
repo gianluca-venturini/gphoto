@@ -1,6 +1,5 @@
 import { google } from 'googleapis';
-import * as fs from 'fs';
-import { promisify } from 'bluebird';
+import { promises as fs } from 'fs';
 import { Core } from './core';
 import { TOKEN_PATH, PORT, CREDENTIALS_PATH } from './env';
 
@@ -26,7 +25,7 @@ export async function ensureAuthorize(core: Core): Promise<void> {
     let credentials: Credentials;
     try {
         // Load client secrets from a local file.
-        const content: Buffer = await promisify(fs.readFile)(CREDENTIALS_PATH);
+        const content: Buffer = await fs.readFile(CREDENTIALS_PATH);
         credentials = JSON.parse(content.toString());
     } catch (err) {
         console.log('Error loading client secret file:', err);
@@ -38,7 +37,7 @@ export async function ensureAuthorize(core: Core): Promise<void> {
 
     // Check if we have previously stored a token.
     try {
-        const tokenData = await promisify(fs.readFile)(TOKEN_PATH);
+        const tokenData = await fs.readFile(TOKEN_PATH);
         const token = JSON.parse(tokenData.toString());
         core.oAuth2Client.setCredentials(token);
     } catch (err) {
@@ -75,6 +74,6 @@ async function ensureToken(core: Core): Promise<void> {
     core.oAuth2Client.setCredentials(response.tokens);
 
     // Store the token to disk for later program executions
-    await promisify(fs.writeFile)(TOKEN_PATH, JSON.stringify(response.tokens));
+    await fs.writeFile(TOKEN_PATH, JSON.stringify(response.tokens));
     console.log('Token stored to', TOKEN_PATH);
 }

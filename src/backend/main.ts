@@ -1,8 +1,7 @@
-import { PORT } from './env';
 import { ensureAuthorize } from './auth';
 import { initCore } from './core';
 import { ensureDbConnect } from './db';
-import { touchGPhotoAlbums, touchGPhotoMediaItems } from './google';
+import { touchGPhotoAlbums, touchGPhotoMediaItems, ensureGPhotoAlbumsCreated, ensureGPhotoMediaItemsCreated } from './google';
 import { touchLocalMediaItems } from './local';
 
 async function start() {
@@ -12,6 +11,9 @@ async function start() {
     await touchGPhotoAlbums(core);
     await touchGPhotoMediaItems(core);
     await touchLocalMediaItems(core);
+    await ensureGPhotoAlbumsCreated(core);
+    // TODO(gianluca): load multiple batches
+    await ensureGPhotoMediaItemsCreated(core);
 }
 
 start();

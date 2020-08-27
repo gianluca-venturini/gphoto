@@ -1,14 +1,18 @@
 export interface AlbumsResponse {
-    albums: {
-        id: string,
-        title: string,
-        productUrl: string,
-        coverPhotoBaseUrl: string,
-        coverPhotoMediaItemId: string,
-        isWriteable: boolean,
-        mediaItemsCount: number
-    }[];
+    albums: Album[];
     nextPageToken: string
+}
+
+export type AlbumResponse = Album;
+
+export interface Album {
+    id: string,
+    title: string,
+    productUrl: string,
+    coverPhotoBaseUrl: string,
+    coverPhotoMediaItemId: string,
+    isWriteable: boolean,
+    mediaItemsCount: number
 }
 
 export interface MediaItemsResponse {
@@ -45,3 +49,23 @@ export interface MediaItemsResponse {
     }[],
     nextPageToken: string
 }
+
+export interface MediaItemsCreateBatchResponse {
+    newMediaItemResults: {
+        mediaItem: {
+            description: string;
+            filename: string;
+            id: string;
+            mediaMetadata: {
+                creationTime: string,
+                width: string,
+                height: string
+            }
+            mimeType: string
+            productUrl: string
+        },
+        status: {
+            message: string;
+        }
+    }[]
+} 
