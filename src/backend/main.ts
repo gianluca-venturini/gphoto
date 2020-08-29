@@ -10,7 +10,6 @@ async function start() {
     await ensureAuthorize(core);
     await touchGPhotoAlbums(core);
     await touchGPhotoMediaItems(core);
-    // TODO: cluster together images inside directories that should become an album
     await touchLocalMediaItems(core);
     await ensureGPhotoAlbumsCreated(core);
     await ensureGPhotoMediaItemsCreated(core);

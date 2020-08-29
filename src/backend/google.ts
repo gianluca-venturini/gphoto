@@ -68,7 +68,7 @@ export async function touchGPhotoMediaItems(core: Core) {
         });
 
         const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
-        response.data.mediaItems.forEach(mediaItem => {
+        response.data.mediaItems?.forEach(mediaItem => {
             statement.run(
                 mediaItem.id,
                 mediaItem.description,
@@ -148,10 +148,20 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
 
 export async function ensureGPhotoMediaItemsCreated(core: Core): Promise<void> {
     let finished = false;
+    let exceptions = 0;
     while (!finished) {
-        const { numErrors, numSuccess } = await ensureGPhotoMediaItemsCreatedBatch(core);
-        if (numSuccess + numErrors === 0) {
-            finished = true;
+        try {
+            const { numErrors, numSuccess } = await ensureGPhotoMediaItemsCreatedBatch(core);
+            if (numSuccess + numErrors === 0) {
+                finished = true;
+            }
+        } catch (error) {
+            console.error('Unknown error in ensureGPhotoMediaItemsCreated', error);
+            exceptions += 1;
+        }
+        if (exceptions > 10) {
+            // Too many exceptions occurred, terminating routine
+            return;
         }
     }
 }
@@ -258,7 +268,7 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
         const errorStatement = core.db.prepare("UPDATE LocalMediaItems SET lastError = ? WHERE path = ?");
 
         response.data.newMediaItemResults.forEach(itemResult => {
-            if (itemResult.status.message === 'Success') {
+            if (itemResult.status.message === 'Success' || itemResult.status.message === 'OK') {
                 numSuccess += 1;
                 successStatement.run(
                     itemResult.mediaItem.id,

@@ -1,5 +1,5 @@
 import { Core } from "./core";
-import { DATA_PATH } from "./env";
+import { DATA_PATH, NO_DIRECTORY_AGGREGATION } from "./env";
 import { promises as fs } from 'fs';
 import { isFileSupported } from "./media";
 
@@ -7,6 +7,7 @@ export async function touchLocalMediaItems(core: Core) {
     console.log('touch local media items');
 
     const directories = [DATA_PATH];
+    const albums = new Map<string, string>(); // path -> albumName
 
     while (directories.length > 0) {
         const directory = directories.shift();
@@ -19,7 +20,14 @@ export async function touchLocalMediaItems(core: Core) {
                 directories.push(entryPath);
             } else if (stat.isFile()) {
                 if (isFileSupported(entry)) {
-                    const albumName = directoryPathToAlbum(directory);
+                    let albumName = ancestorAlbum(albums, directory);
+                    if (!albumName) {
+                        albumName = directoryPathToAlbum(directory);
+                        if (!NO_DIRECTORY_AGGREGATION) {
+                            // Disable directory aggregation not memoizing the albumName
+                            albums.set(directory, albumName);
+                        }
+                    }
                     touchLocalMediaItem(entryPath, albumName, entry, core);
                 } else {
                     console.log(`unsupported file: ${entry}`);
@@ -32,7 +40,24 @@ export async function touchLocalMediaItems(core: Core) {
 }
 
 function directoryPathToAlbum(directory: string) {
-    return directory.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+    return directory.replace(`${DATA_PATH}/`, '').replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+}
+
+function ancestorAlbum(albums: Map<string, string>, directory: string): string | null {
+    const path = directory.split('/');
+    if (path.length === 0) {
+        return null;
+    }
+
+    const ancestorPath: string[] = [];
+    while (ancestorPath.length < path.length) {
+        const ancestorDirectory = ancestorPath.join('/');
+        if (albums.has(ancestorDirectory)) {
+            return albums.get(ancestorDirectory);
+        }
+        ancestorPath.push(path[ancestorPath.length]);
+    }
+    return null;
 }
 
 function touchLocalMediaItem(entryPath: string, albumName: string, fileName: string, core: Core) {

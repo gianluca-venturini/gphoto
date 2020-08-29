@@ -2,7 +2,8 @@
 Simple program for uploading a lot of pictures to Google Photo.
 
 ## Features
-- Authenticate with Google
+- Authenticate with Google: connect to http://localhost:8080/ in order to start the auth procedure, once terminated it will create a `token.json` file under `config/` directory.
+- Recursively looks on all directories and starts creating albums from the first directory in the hierarchy that contains supported files. This feature guarantees that albums composed by multiple directories are aggregated together. It can be disabled setting env variable `NO_DIRECTORY_AGGREGATION=true`.
 
 ## Dependencies
 - Install `node`
