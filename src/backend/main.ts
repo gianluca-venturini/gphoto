@@ -16,7 +16,7 @@ async function start() {
         const elapsedTimeMs = new Date().getTime() - startTime.getTime();
         console.log(`Loop completed with success in ${elapsedTimeMs / 1000}s`);
         const waitMs = Math.max(0, RUN_EVERY_MINS * 60 * 1000 - elapsedTimeMs);
-        console.log(`Waiting for ${waitMs / 1000 / 60}mins`);
+        console.log(`Waiting for ${Math.ceil(waitMs / 1000 / 60)}mins`);
         await new Promise((resolve) => setTimeout(() => resolve(), waitMs));
     }
 }
