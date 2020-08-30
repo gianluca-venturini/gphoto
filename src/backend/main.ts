@@ -12,7 +12,7 @@ async function start() {
     while (true) {
         const startTime = new Date();
         console.log('Starting loop');
-        loop(core);
+        await loop(core);
         const elapsedTimeMs = new Date().getTime() - startTime.getTime();
         console.log(`Loop completed with success in ${elapsedTimeMs / 1000}s`);
         const waitMs = Math.max(0, RUN_EVERY_MINS * 60 * 1000 - elapsedTimeMs);
