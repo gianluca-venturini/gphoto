@@ -8,6 +8,7 @@
     "docker-build": "docker build -t gianluca91/gphoto .",
     "docker-start": "docker run -p 8080:8080 --rm -it -v $(pwd)/config:/usr/app/config -v $(pwd)/data:/usr/app/data:ro --name gphoto gianluca91/gphoto",
     "docker-stop": "docker stop -t 0 gphoto",
+    "build": "yarn dev-build",
     "dev-build": "PROJECTS=backend webpack --progress --colors",
     "dev-watch": "PROJECTS=backend WATCH=true webpack --progress --colors",
     "dev-start": "node --inspect dist/server.js",
