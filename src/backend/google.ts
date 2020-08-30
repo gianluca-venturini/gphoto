@@ -4,24 +4,37 @@ import { readFileContent } from "./local";
 import { GaxiosOptions, GaxiosPromise } from 'gaxios';
 
 export function ensureGoogleApiRequest(core: Core) {
+    async function waitOnExponentialBackoff() {
+        if (!core.rateLimitBackoffMs) {
+            core.rateLimitBackoffMs = 60_000;
+        } else {
+            core.rateLimitBackoffMs = Math.min(core.rateLimitBackoffMs * 2, 10 * 60_000);
+        }
+        await new Promise((resolve) => setTimeout(() => resolve(), core.rateLimitBackoffMs));
+    }
+
     async function apiRequest<T>(opts: GaxiosOptions): GaxiosPromise<T> {
         let numRateLimitRetry = 0;
         while (numRateLimitRetry < 5) {
-            const response = await core.oAuth2Client.request<T>({ ...opts, retry: true });
-            if (response.status === 200) {
-                core.rateLimitBackoffMs = null;
-                return response
-            } else if (response.status === 429) {
-                // Rate limit reached
-                if (!core.rateLimitBackoffMs) {
-                    core.rateLimitBackoffMs = 60_000;
+            try {
+                const response = await core.oAuth2Client.request<T>({ ...opts, retry: true });
+                if (response.status === 200) {
+                    core.rateLimitBackoffMs = null;
+                    return response
+                } else if (response.status === 429) {
+                    // Rate limit reached
+                    waitOnExponentialBackoff();
+                    numRateLimitRetry += 1;
                 } else {
-                    core.rateLimitBackoffMs = Math.min(core.rateLimitBackoffMs * 2, 10 * 60_000);
+                    throw new Error(`Unknown Google API response status ${response.status}. Is this an unhandled edge case?`);
                 }
-                await new Promise((resolve) => setTimeout(() => resolve(), core.rateLimitBackoffMs));
-                numRateLimitRetry += 1;
-            } else {
-                throw new Error(`Unknown Google API response status ${response.status}. Is this an unhandled edge case?`);
+            } catch (error) {
+                if (!!error.message.match(/^Quota exceeded/i)) {
+                    waitOnExponentialBackoff();
+                    numRateLimitRetry += 1;
+                } else {
+                    throw error;
+                }
             }
 
         }
