@@ -10,12 +10,13 @@ export function ensureGoogleApiRequest(core: Core) {
         } else {
             core.rateLimitBackoffMs = Math.min(core.rateLimitBackoffMs * 2, 10 * 60_000);
         }
+        console.log(`Waiting ${core.rateLimitBackoffMs}ms`);
         await new Promise((resolve) => setTimeout(() => resolve(), core.rateLimitBackoffMs));
     }
 
     async function apiRequest<T>(opts: GaxiosOptions): GaxiosPromise<T> {
         let numRateLimitRetry = 0;
-        while (numRateLimitRetry < 5) {
+        while (numRateLimitRetry < 10) {
             try {
                 const response = await core.oAuth2Client.request<T>({ ...opts, retry: true });
                 if (response.status === 200) {
@@ -26,6 +27,7 @@ export function ensureGoogleApiRequest(core: Core) {
                 }
             } catch (error) {
                 if (error.code === 429) {
+                    console.log('Rate limit exceeded');
                     waitOnExponentialBackoff();
                     numRateLimitRetry += 1;
                 } else if (error.code === 400) {
