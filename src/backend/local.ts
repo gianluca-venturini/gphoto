@@ -3,6 +3,17 @@ import { DATA_PATH, NO_DIRECTORY_AGGREGATION } from "./env";
 import { promises as fs } from 'fs';
 import { isFileSupported } from "./media";
 
+export async function cleanLocalMediaItems(core: Core) {
+    await new Promise((resolve, reject) => {
+        core.db.run('DELETE FROM LocalMediaItems', err => {
+            if (err) {
+                return reject(err);
+            }
+            resolve();
+        });
+    })
+}
+
 export async function touchLocalMediaItems(core: Core) {
     console.log('touch local media items');
 

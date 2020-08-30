@@ -21,13 +21,14 @@ function ensureDbTables(core: Core) {
             coverPhotoBaseUrl TEXT,
             coverPhotoMediaItemId TEXT,
             isWriteable BOOLEAN,
-            mediaItemsCount INTEGER
+            mediaItemsCount INTEGER,
+            lastTouchDate TEXT -- last time we confirmed that is not deleted
         )
     `);
     core.db.run(`
         CREATE TABLE IF NOT EXISTS RemoteMediaItems (
             id TEXT PRIMARY KEY,
-            description TEXT,
+            description TEXT, -- contains the local path of the file
             productUrl TEXT,
             baseUrl TEXT,
             mimeType TEXT,

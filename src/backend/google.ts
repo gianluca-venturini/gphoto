@@ -1,5 +1,5 @@
 import { Core } from "./core";
-import { AlbumsResponse, MediaItemsResponse, AlbumResponse, MediaItemsCreateBatchResponse } from "./googleJson";
+import { AlbumsResponse, MediaItemsResponse, AlbumResponse, MediaItemsCreateBatchResponse, Album, MediaItem } from "./googleJson";
 import { readFileContent } from "./local";
 
 export async function touchGPhotoAlbums(core: Core) {
@@ -23,7 +23,7 @@ export async function touchGPhotoAlbums(core: Core) {
             retry: true,
         });
 
-        const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount, lastTouchDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
         response.data.albums?.forEach(album => {
             statement.run(
                 album.id,
@@ -32,7 +32,8 @@ export async function touchGPhotoAlbums(core: Core) {
                 album.coverPhotoBaseUrl,
                 album.coverPhotoMediaItemId,
                 album.isWriteable,
-                album.mediaItemsCount
+                album.mediaItemsCount,
+                new Date().toISOString()
             );
         });
         statement.finalize();
@@ -44,6 +45,104 @@ export async function touchGPhotoAlbums(core: Core) {
     }
 
     console.log('Finished fetching album pages');
+}
+
+export async function ensureDeletedAlbums(core: Core) {
+    let finished = false;
+    let exceptions = 0;
+    // TODO: choose a reasonable date in the past
+    const checkBeforeDate = new Date(); // every albums touched before this date will be checked for deletion
+    while (!finished) {
+        try {
+            const { numErrors, numSuccess } = await ensureDeletedAlbumsBatch(checkBeforeDate, core);
+            if (numSuccess + numErrors === 0) {
+                finished = true;
+            }
+        } catch (error) {
+            console.error('Unknown error in ensureDeletedAlbums', error);
+            exceptions += 1;
+        }
+        if (exceptions > 10) {
+            // Too many exceptions occurred, terminating routine
+            return;
+        }
+    }
+}
+
+export async function ensureDeletedAlbumsBatch(checkBeforeDate: Date, core: Core): Promise<{ numErrors: number, numSuccess: number }> {
+    console.log('ensure albums are not deleted batch');
+    let numErrors = 0;
+    let numSuccess = 0;
+
+    const toTest: { albumId: string }[] = [];
+    await new Promise((resolve, reject) => {
+        core.db.each(
+            `
+            SELECT 
+                RemoteAlbums.id AS albumId
+            FROM RemoteAlbums
+            WHERE lastTouchDate < ?
+            ORDER BY albumId
+            LIMIT 10
+            `,
+            [checkBeforeDate.toISOString()],
+            (err, row) => {
+                toTest.push(row);
+            },
+            err => {
+                if (err) {
+                    return reject(err);
+                }
+                resolve();
+            }
+        );
+    });
+    console.log(`need to check ${toTest.length} albums for deletion`);
+
+    for (const album of toTest) {
+        const response = await core.oAuth2Client.request<Album>({
+            url: `https://photoslibrary.googleapis.com/v1/albums/${album.albumId}`,
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            retry: true,
+        });
+
+        if (response.statusText === 'OK' && !response.data) {
+            // The album is deleted on Google side
+            await new Promise((resolve, reject) => {
+                core.db.run('DELETE FROM RemoteAlbums WHERE id = ?', [album.albumId], err => {
+                    if (err) {
+                        numErrors += 1;
+                    } else {
+                        numSuccess += 1;
+                    }
+                    resolve();
+                });
+            });
+            console.log(`Found deleted album: ${album.albumId}`);
+        } else if (response.statusText === 'OK' && response.data.id === album.albumId) {
+            // The album is present on Google side
+            const now = new Date(); // Updating the lastTouchDate to now prevents the album to be retried in a following batch
+            await new Promise((resolve, reject) => {
+                core.db.run('UPDATE RemoteAlbums SET lastTouchDate = ? WHERE id = ?', [now.toISOString(), album.albumId], err => {
+                    if (err) {
+                        numErrors += 1;
+                    } else {
+                        numSuccess += 1;
+                    }
+                    resolve();
+                });
+            });
+        } else {
+            console.error('Incorrect response from Google. Is this an unhandled edge case?', response);
+            numErrors += 1;
+        }
+    }
+    console.log('end of ensure albums are not deleted batch');
+
+    return { numErrors, numSuccess };
 }
 
 export async function touchGPhotoMediaItems(core: Core) {
@@ -267,17 +366,29 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
         const successStatement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
         const errorStatement = core.db.prepare("UPDATE LocalMediaItems SET lastError = ? WHERE path = ?");
 
-        response.data.newMediaItemResults.forEach(itemResult => {
+        for (const itemResult of response.data.newMediaItemResults) {
             if (itemResult.status.message === 'Success' || itemResult.status.message === 'OK') {
-                numSuccess += 1;
+                const path = uploadTokenToPath.get(itemResult.uploadToken);
+                let mediaItem = itemResult.mediaItem;
+                if (path !== itemResult.mediaItem.description) {
+                    // This can happen when the image is a duplicate, Google is keeping the old metadata instead of updating them
+                    const patchedMediaItem = await patchMediaItem(itemResult.mediaItem.id, { description: path }, core)
+                    if (!patchedMediaItem) {
+                        numErrors += 1;
+                        continue;
+                    }
+                    mediaItem = patchedMediaItem;
+                }
+
                 successStatement.run(
-                    itemResult.mediaItem.id,
-                    itemResult.mediaItem.description,
-                    itemResult.mediaItem.productUrl,
+                    mediaItem.id,
+                    mediaItem.description,
+                    mediaItem.productUrl,
                     '', // TODO: add the baseUrl or remove it from the DB schema
-                    itemResult.mediaItem.mimeType,
-                    itemResult.mediaItem.filename
+                    mediaItem.mimeType,
+                    mediaItem.filename
                 );
+                numSuccess += 1;
             } else {
                 numErrors += 1;
                 errorStatement.run(
@@ -285,12 +396,29 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
                     uploadTokenToPath.get(itemResult.uploadToken),
                 );
             }
-        })
+        }
         errorStatement.finalize();
         successStatement.finalize();
     }
     console.log('All media items in batch created');
 
     return { numSuccess, numErrors };
+}
 
+async function patchMediaItem(mediaItemId: string, patch: Partial<MediaItem>, core: Core): Promise<MediaItem> {
+    console.log(`Patch media item ${mediaItemId} with ${JSON.stringify(patch)}`);
+    const response = await core.oAuth2Client.request<MediaItem>({
+        url: `https://photoslibrary.googleapis.com/v1/mediaItems/${mediaItemId}`,
+        method: 'PATCH',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        params: {
+            updateMask: Object.keys(patch).join(',')
+        },
+        data: patch,
+        retry: true,
+    });
+
+    return response.statusText === 'OK' ? response.data : null;
 }

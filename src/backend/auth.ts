@@ -5,7 +5,8 @@ import { TOKEN_PATH, PORT, CREDENTIALS_PATH } from './env';
 
 /** If modifying these scopes, delete token.json. */
 const SCOPES = [
-    'https://www.googleapis.com/auth/photoslibrary'
+    'https://www.googleapis.com/auth/photoslibrary',
+    'https://www.googleapis.com/auth/photoslibrary.edit.appcreateddata' // Needed for https://developers.google.com/photos/library/reference/rest/v1/mediaItems/patch
 ];
 
 interface Credentials {
