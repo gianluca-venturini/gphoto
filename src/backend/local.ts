@@ -41,8 +41,8 @@ export async function touchLocalMediaItems(core: Core) {
         }
         await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 
-        console.log('finish touch local media items');
     }
+    console.log('finish touch local media items');
 }
 
 function directoryPathToAlbum(directory: string) {
