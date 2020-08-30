@@ -9,6 +9,7 @@ export function ensureGoogleApiRequest(core: Core) {
         while (numRateLimitRetry < 5) {
             const response = await core.oAuth2Client.request<T>({ ...opts, retry: true });
             if (response.status === 200) {
+                core.rateLimitBackoffMs = null;
                 return response
             } else if (response.status === 429) {
                 // Rate limit reached
