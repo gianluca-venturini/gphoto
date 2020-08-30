@@ -39,7 +39,7 @@ export async function touchLocalMediaItems(core: Core) {
                             albums.set(directory, albumName);
                         }
                     }
-                    touchLocalMediaItem(entryPath, albumName, entry, core);
+                    await touchLocalMediaItem(entryPath, albumName, entry, core);
                 } else {
                     console.log(`unsupported file: ${entry}`);
                 }
@@ -71,14 +71,14 @@ function ancestorAlbum(albums: Map<string, string>, directory: string): string |
     return null;
 }
 
-function touchLocalMediaItem(entryPath: string, albumName: string, fileName: string, core: Core) {
+async function touchLocalMediaItem(entryPath: string, albumName: string, fileName: string, core: Core) {
     var statement = core.db.prepare("INSERT OR REPLACE INTO LocalMediaItems(path, fileName, albumName) VALUES (?, ?, ?)");
     statement.run(
         entryPath,
         fileName,
         albumName
     );
-    statement.finalize();
+    await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 }
 
 export async function readFileContent(path: string): Promise<Buffer> {

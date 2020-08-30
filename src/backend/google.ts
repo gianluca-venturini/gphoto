@@ -64,7 +64,7 @@ export async function touchGPhotoAlbums(core: Core) {
                 new Date().toISOString()
             );
         });
-        statement.finalize();
+        await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 
         if (!response.data.nextPageToken) {
             finished = true;
@@ -205,7 +205,7 @@ export async function touchGPhotoMediaItems(core: Core) {
                 mediaItem.filename
             );
         });
-        statement.finalize();
+        await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 
         if (!response.data.nextPageToken) {
             finished = true;
@@ -269,7 +269,7 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
             response.data.mediaItemsCount
         );
     }
-    statement.finalize();
+    await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
     console.log('all G Photo Albums created successfully');
 }
 
@@ -425,8 +425,8 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
                 );
             }
         }
-        errorStatement.finalize();
-        successStatement.finalize();
+        await new Promise((resolve, reject) => errorStatement.finalize(err => { if (err) { return reject(err); } resolve(); }));
+        await new Promise((resolve, reject) => successStatement.finalize(err => { if (err) { return reject(err); } resolve(); }));
     }
     console.log('All media items in batch created');
 
