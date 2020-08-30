@@ -21,17 +21,16 @@ export function ensureGoogleApiRequest(core: Core) {
                 if (response.status === 200) {
                     core.rateLimitBackoffMs = null;
                     return response
-                } else if (response.status === 429) {
-                    // Rate limit reached
-                    waitOnExponentialBackoff();
-                    numRateLimitRetry += 1;
                 } else {
                     throw new Error(`Unknown Google API response status ${response.status}. Is this an unhandled edge case?`);
                 }
             } catch (error) {
-                if (!!error.message.match(/^Quota exceeded/i)) {
+                if (error.code === 429) {
                     waitOnExponentialBackoff();
                     numRateLimitRetry += 1;
+                } else if (error.code === 400) {
+                    core.rateLimitBackoffMs = null;
+                    return error.response;
                 } else {
                     throw error;
                 }
@@ -151,7 +150,8 @@ export async function ensureDeletedAlbumsBatch(checkBeforeDate: Date, core: Core
             retry: true,
         });
 
-        if (response.statusText === 'OK' && !response.data) {
+        if (response.status === 400) {
+            console.log(`Found remote deleted album, updating the DB`);
             // The album is deleted on Google side
             await new Promise((resolve, reject) => {
                 core.db.run('DELETE FROM RemoteAlbums WHERE id = ?', [album.albumId], err => {

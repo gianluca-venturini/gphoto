@@ -3,17 +3,6 @@ import { DATA_PATH, NO_DIRECTORY_AGGREGATION } from "./env";
 import { promises as fs } from 'fs';
 import { isFileSupported } from "./media";
 
-export async function cleanLocalMediaItems(core: Core) {
-    await new Promise((resolve, reject) => {
-        core.db.run('DELETE FROM LocalMediaItems', err => {
-            if (err) {
-                return reject(err);
-            }
-            resolve();
-        });
-    })
-}
-
 export async function touchLocalMediaItems(core: Core) {
     console.log('touch local media items');
 
@@ -23,14 +12,15 @@ export async function touchLocalMediaItems(core: Core) {
     while (directories.length > 0) {
         const directory = directories.shift();
         console.log(`Inspect directory ${directory}`);
-        const directoryList = await fs.readdir(directory);
-        for (const entry of directoryList) {
-            const entryPath = `${directory}/${entry}`;
-            const stat = await fs.lstat(entryPath);
-            if (stat.isDirectory()) {
-                directories.push(entryPath);
-            } else if (stat.isFile()) {
-                if (isFileSupported(entry)) {
+        const dirents = await fs.readdir(directory, { withFileTypes: true });
+        await new Promise((resolve, reject) => core.db.run("DELETE FROM LocalMediaItems WHERE path LIKE ?", [`${directory}%`], err => { if (err) { return reject(err); } resolve() }));
+        var statement = core.db.prepare("INSERT OR REPLACE INTO LocalMediaItems(path, fileName, albumName) VALUES (?, ?, ?)");
+        for (const dirent of dirents) {
+            const path = `${directory}/${dirent.name}`;
+            if (dirent.isDirectory()) {
+                directories.push(path);
+            } else if (dirent.isFile()) {
+                if (isFileSupported(dirent.name)) {
                     let albumName = ancestorAlbum(albums, directory);
                     if (!albumName) {
                         albumName = directoryPathToAlbum(directory);
@@ -39,15 +29,20 @@ export async function touchLocalMediaItems(core: Core) {
                             albums.set(directory, albumName);
                         }
                     }
-                    await touchLocalMediaItem(entryPath, albumName, entry, core);
+                    statement.run(
+                        path,
+                        dirent.name,
+                        albumName
+                    );
                 } else {
-                    console.log(`unsupported file: ${entry}`);
+                    console.log(`unsupported file: ${path}`);
                 }
             }
         }
-    }
+        await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 
-    console.log('finish touch local media items');
+        console.log('finish touch local media items');
+    }
 }
 
 function directoryPathToAlbum(directory: string) {
@@ -69,16 +64,6 @@ function ancestorAlbum(albums: Map<string, string>, directory: string): string |
         ancestorPath.push(path[ancestorPath.length]);
     }
     return null;
-}
-
-async function touchLocalMediaItem(entryPath: string, albumName: string, fileName: string, core: Core) {
-    var statement = core.db.prepare("INSERT OR REPLACE INTO LocalMediaItems(path, fileName, albumName) VALUES (?, ?, ?)");
-    statement.run(
-        entryPath,
-        fileName,
-        albumName
-    );
-    await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 }
 
 export async function readFileContent(path: string): Promise<Buffer> {

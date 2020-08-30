@@ -2,7 +2,7 @@ import { ensureAuthorize } from './auth';
 import { initCore, Core } from './core';
 import { ensureDbConnect } from './db';
 import { touchGPhotoAlbums, touchGPhotoMediaItems, ensureGPhotoAlbumsCreated, ensureGPhotoMediaItemsCreated, ensureDeletedAlbums, ensureGoogleApiRequest } from './google';
-import { touchLocalMediaItems, cleanLocalMediaItems } from './local';
+import { touchLocalMediaItems } from './local';
 import { RUN_EVERY_MINS } from './env';
 
 async function start() {
@@ -29,7 +29,6 @@ async function loop(core: Core) {
     await touchGPhotoAlbums(core);
     await ensureDeletedAlbums(core);
     await touchGPhotoMediaItems(core);
-    await cleanLocalMediaItems(core);
     await touchLocalMediaItems(core);
     await ensureGPhotoAlbumsCreated(core);
     await ensureGPhotoMediaItemsCreated(core);
