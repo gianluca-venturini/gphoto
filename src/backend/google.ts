@@ -1,6 +1,34 @@
 import { Core } from "./core";
 import { AlbumsResponse, MediaItemsResponse, AlbumResponse, MediaItemsCreateBatchResponse, Album, MediaItem } from "./googleJson";
 import { readFileContent } from "./local";
+import { GaxiosOptions, GaxiosPromise } from 'gaxios';
+
+export function ensureGoogleApiRequest(core: Core) {
+    async function apiRequest<T>(opts: GaxiosOptions): GaxiosPromise<T> {
+        let numRateLimitRetry = 0;
+        while (numRateLimitRetry < 5) {
+            const response = await core.oAuth2Client.request<T>({ ...opts, retry: true });
+            if (response.status === 200) {
+                return response
+            } else if (response.status === 429) {
+                // Rate limit reached
+                if (!core.rateLimitBackoffMs) {
+                    core.rateLimitBackoffMs = 60_000;
+                } else {
+                    core.rateLimitBackoffMs = Math.min(core.rateLimitBackoffMs * 2, 10 * 60_000);
+                }
+                await new Promise((resolve) => setTimeout(() => resolve(), core.rateLimitBackoffMs));
+                numRateLimitRetry += 1;
+            } else {
+                throw new Error(`Unknown Google API response status ${response.status}. Is this an unhandled edge case?`);
+            }
+
+        }
+        throw new Error(`Rate limit exceeded too many times ${numRateLimitRetry}`);
+    }
+
+    core.apiRequest = apiRequest;
+}
 
 export async function touchGPhotoAlbums(core: Core) {
     console.log('touch Google Photo albums');
@@ -10,7 +38,7 @@ export async function touchGPhotoAlbums(core: Core) {
 
     while (!finished) {
         console.log('Fetch albums page');
-        const response = await core.oAuth2Client.request<AlbumsResponse>({
+        const response = await core.apiRequest<AlbumsResponse>({
             url: 'https://photoslibrary.googleapis.com/v1/albums',
             method: 'GET',
             headers: {
@@ -100,7 +128,7 @@ export async function ensureDeletedAlbumsBatch(checkBeforeDate: Date, core: Core
     console.log(`need to check ${toTest.length} albums for deletion`);
 
     for (const album of toTest) {
-        const response = await core.oAuth2Client.request<Album>({
+        const response = await core.apiRequest<Album>({
             url: `https://photoslibrary.googleapis.com/v1/albums/${album.albumId}`,
             method: 'GET',
             headers: {
@@ -153,7 +181,7 @@ export async function touchGPhotoMediaItems(core: Core) {
 
     while (!finished) {
         console.log('Fetch media items page');
-        const response = await core.oAuth2Client.request<MediaItemsResponse>({
+        const response = await core.apiRequest<MediaItemsResponse>({
             url: 'https://photoslibrary.googleapis.com/v1/mediaItems',
             method: 'GET',
             headers: {
@@ -217,7 +245,7 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
     const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount) VALUES (?, ?, ?, ?, ?, ?, ?)");
 
     for (const albumName of albumNames) {
-        const response = await core.oAuth2Client.request<AlbumResponse>({
+        const response = await core.apiRequest<AlbumResponse>({
             url: 'https://photoslibrary.googleapis.com/v1/albums',
             method: 'POST',
             headers: {
@@ -307,7 +335,7 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
 
     for (const { fileName, path, albumId } of toUpload) {
         const body = await readFileContent(path);
-        const uploadResponse = await core.oAuth2Client.request<string>({
+        const uploadResponse = await core.apiRequest<string>({
             url: 'https://photoslibrary.googleapis.com/v1/uploads',
             method: 'POST',
             headers: {
@@ -345,7 +373,7 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
     });
 
     for (let [albumId, items] of albums) {
-        const response = await core.oAuth2Client.request<MediaItemsCreateBatchResponse>({
+        const response = await core.apiRequest<MediaItemsCreateBatchResponse>({
             url: 'https://photoslibrary.googleapis.com/v1/mediaItems:batchCreate',
             method: 'POST',
             headers: {
@@ -407,7 +435,7 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
 
 async function patchMediaItem(mediaItemId: string, patch: Partial<MediaItem>, core: Core): Promise<MediaItem> {
     console.log(`Patch media item ${mediaItemId} with ${JSON.stringify(patch)}`);
-    const response = await core.oAuth2Client.request<MediaItem>({
+    const response = await core.apiRequest<MediaItem>({
         url: `https://photoslibrary.googleapis.com/v1/mediaItems/${mediaItemId}`,
         method: 'PATCH',
         headers: {

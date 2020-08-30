@@ -1,13 +1,15 @@
 import { ensureAuthorize } from './auth';
 import { initCore } from './core';
 import { ensureDbConnect } from './db';
-import { touchGPhotoAlbums, touchGPhotoMediaItems, ensureGPhotoAlbumsCreated, ensureGPhotoMediaItemsCreated, ensureDeletedAlbums } from './google';
+import { touchGPhotoAlbums, touchGPhotoMediaItems, ensureGPhotoAlbumsCreated, ensureGPhotoMediaItemsCreated, ensureDeletedAlbums, ensureGoogleApiRequest } from './google';
 import { touchLocalMediaItems, cleanLocalMediaItems } from './local';
 
 async function start() {
     const core = initCore();
     await ensureDbConnect(core);
     await ensureAuthorize(core);
+    await ensureGoogleApiRequest(core);
+
     await touchGPhotoAlbums(core);
     await ensureDeletedAlbums(core);
     await touchGPhotoMediaItems(core);
