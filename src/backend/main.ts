@@ -32,9 +32,7 @@ async function loop(core: Core) {
     await touchLocalMediaItems(core);
     await ensureGPhotoAlbumsCreated(core);
     await ensureGPhotoMediaItemsCreated(core);
-    // TODO: ensure that all albums have the correct number of elements and repair the broken one
     // TODO: ensure that no duplicated images are contained in the catalog and repair
-    // TODO: ensure that the database reflects deleted albums
 }
 
 start();

@@ -2,6 +2,7 @@ import { Core } from "./core";
 import { AlbumsResponse, MediaItemsResponse, AlbumResponse, MediaItemsCreateBatchResponse, Album, MediaItem } from "./googleJson";
 import { readFileContent } from "./local";
 import { GaxiosOptions, GaxiosPromise } from 'gaxios';
+import { FIX_DUPLICATE_DESCRIPTION } from "./env";
 
 export function ensureGoogleApiRequest(core: Core) {
     async function waitOnExponentialBackoff() {
@@ -416,12 +417,19 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
                 let mediaItem = itemResult.mediaItem;
                 if (path !== itemResult.mediaItem.description) {
                     // This can happen when the image is a duplicate, Google is keeping the old metadata instead of updating them
-                    const patchedMediaItem = await patchMediaItem(itemResult.mediaItem.id, { description: path }, core)
-                    if (!patchedMediaItem) {
-                        numErrors += 1;
-                        continue;
+                    if (FIX_DUPLICATE_DESCRIPTION) {
+                        // Update the image path (in the description) remotely, disable this feature if you have duplicated pictures in multiple albums
+                        const patchedMediaItem = await patchMediaItem(itemResult.mediaItem.id, { description: path }, core);
+                        if (!patchedMediaItem) {
+                            numErrors += 1;
+                            continue;
+                        }
+                        mediaItem = patchedMediaItem;
+                    } else {
+                        // Insert the path as a description only in the DB without fixing the issue in Google
+                        // this is necessary to avoid re-processing the same image over and over
+                        mediaItem.description = path;
                     }
-                    mediaItem = patchedMediaItem;
                 }
 
                 successStatement.run(
@@ -464,5 +472,6 @@ async function patchMediaItem(mediaItemId: string, patch: Partial<MediaItem>, co
         retry: true,
     });
 
+    await new Promise((resolve) => setTimeout(() => resolve(), 200));
     return response.statusText === 'OK' ? response.data : null;
 }
