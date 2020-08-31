@@ -6,9 +6,9 @@ import { GaxiosOptions, GaxiosPromise } from 'gaxios';
 export function ensureGoogleApiRequest(core: Core) {
     async function waitOnExponentialBackoff() {
         if (!core.rateLimitBackoffMs) {
-            core.rateLimitBackoffMs = 60_000;
+            core.rateLimitBackoffMs = 30_000;
         } else {
-            core.rateLimitBackoffMs = Math.min(core.rateLimitBackoffMs * 2, 60 * 60_000);
+            core.rateLimitBackoffMs = Math.min(core.rateLimitBackoffMs * 1.3, 60 * 60_000);
         }
         console.log(`Waiting ${core.rateLimitBackoffMs}ms`);
         await new Promise((resolve) => setTimeout(() => resolve(), core.rateLimitBackoffMs));
@@ -16,7 +16,7 @@ export function ensureGoogleApiRequest(core: Core) {
 
     async function apiRequest<T>(opts: GaxiosOptions): GaxiosPromise<T> {
         let numRateLimitRetry = 0;
-        while (numRateLimitRetry < 10) {
+        while (numRateLimitRetry <= 20) {
             try {
                 const response = await core.oAuth2Client.request<T>({ ...opts, retry: true });
                 if (response.status === 200) {
@@ -184,6 +184,7 @@ export async function ensureDeletedAlbumsBatch(checkBeforeDate: Date, core: Core
             console.error('Incorrect response from Google. Is this an unhandled edge case?', response);
             numErrors += 1;
         }
+        await new Promise((resolve) => setTimeout(() => resolve(), 100)); // be nice with Google
     }
     console.log('end of ensure albums are not deleted batch');
 
