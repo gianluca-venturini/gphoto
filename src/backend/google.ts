@@ -8,7 +8,7 @@ export function ensureGoogleApiRequest(core: Core) {
         if (!core.rateLimitBackoffMs) {
             core.rateLimitBackoffMs = 60_000;
         } else {
-            core.rateLimitBackoffMs = Math.min(core.rateLimitBackoffMs * 2, 10 * 60_000);
+            core.rateLimitBackoffMs = Math.min(core.rateLimitBackoffMs * 2, 60 * 60_000);
         }
         console.log(`Waiting ${core.rateLimitBackoffMs}ms`);
         await new Promise((resolve) => setTimeout(() => resolve(), core.rateLimitBackoffMs));
@@ -26,6 +26,7 @@ export function ensureGoogleApiRequest(core: Core) {
                     throw new Error(`Unknown Google API response status ${response.status}. Is this an unhandled edge case?`);
                 }
             } catch (error) {
+                console.log(error);
                 if (error.code === 429) {
                     console.log('Rate limit exceeded');
                     waitOnExponentialBackoff();
@@ -258,9 +259,8 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
     });
     console.log(`need to create ${albumNames.length} albums`);
 
-    const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount) VALUES (?, ?, ?, ?, ?, ?, ?)");
-
     for (const albumName of albumNames) {
+        console.log(`Creating ${albumName} album`);
         const response = await core.apiRequest<AlbumResponse>({
             url: 'https://photoslibrary.googleapis.com/v1/albums',
             method: 'POST',
@@ -274,8 +274,7 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
             },
             retry: true,
         });
-
-        statement.run(
+        await new Promise((resolve, reject) => core.db.run("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount) VALUES (?, ?, ?, ?, ?, ?, ?)", [
             response.data.id,
             response.data.title,
             response.data.productUrl,
@@ -283,9 +282,9 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
             response.data.coverPhotoMediaItemId,
             response.data.isWriteable,
             response.data.mediaItemsCount
-        );
+        ], err => { if (err) { return reject(err); } resolve(); }));
+        await new Promise((resolve) => setTimeout(() => resolve(), 10_000)); // wait 10s between calls to be nice with Google
     }
-    await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
     console.log('all G Photo Albums created successfully');
 }
 
