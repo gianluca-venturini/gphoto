@@ -285,7 +285,7 @@ export async function ensureGPhotoAlbumsCreated(core: Core): Promise<void> {
             response.data.isWriteable,
             response.data.mediaItemsCount
         ], err => { if (err) { return reject(err); } resolve(); }));
-        await new Promise((resolve) => setTimeout(() => resolve(), 10_000)); // wait 10s between calls to be nice with Google
+        await new Promise((resolve) => setTimeout(() => resolve(), 500)); // be nice to google
     }
     console.log('all G Photo Albums created successfully');
 }
@@ -472,6 +472,6 @@ async function patchMediaItem(mediaItemId: string, patch: Partial<MediaItem>, co
         retry: true,
     });
 
-    await new Promise((resolve) => setTimeout(() => resolve(), 200));
+    await new Promise((resolve) => setTimeout(() => resolve(), 200)); // be nice to google
     return response.statusText === 'OK' ? response.data : null;
 }
