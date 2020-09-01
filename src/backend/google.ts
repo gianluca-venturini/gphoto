@@ -426,9 +426,9 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
                         }
                         mediaItem = patchedMediaItem;
                     } else {
-                        // Insert the path as a description only in the DB without fixing the issue in Google
-                        // this is necessary to avoid re-processing the same image over and over
-                        mediaItem.description = path;
+                        // Remove the local item from the DB since we cannot insert it in multiple albums
+                        console.log(`Duplicated file ${path} delete manually`);
+                        await new Promise((resolve, reject) => core.db.prepare("DELETE FROM LocalMediaItems WHERE path = ?", [path], err => { if (err) { return reject(err); } resolve() }));
                     }
                 }
 
