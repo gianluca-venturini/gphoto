@@ -428,7 +428,7 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
                     } else {
                         // Remove the local item from the DB since we cannot insert it in multiple albums
                         console.log(`Duplicated file ${path} delete manually`);
-                        await new Promise((resolve, reject) => core.db.prepare("DELETE FROM LocalMediaItems WHERE path = ?", [path], err => { if (err) { return reject(err); } resolve() }));
+                        await new Promise((resolve, reject) => core.db.run("DELETE FROM LocalMediaItems WHERE path = ?", [path], err => { if (err) { return reject(err); } resolve() }));
                     }
                 }
 
