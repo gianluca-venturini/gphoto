@@ -304,7 +304,7 @@ export async function ensureGPhotoMediaItemsCreated(core: Core): Promise<void> {
             exceptions += 1;
         }
         if (exceptions > 10) {
-            // Too many exceptions occurred, terminating routine
+            console.error('Too many exceptions occurred, terminating routine');
             return;
         }
     }
@@ -350,28 +350,40 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
 
     const uploadedItems: { path: string; uploadToken: string; fileName: string; albumId: string; }[] = [];
 
+    const successStatement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
+    const errorStatement = core.db.prepare("UPDATE LocalMediaItems SET lastError = ? WHERE path = ?");
+
     for (const { fileName, path, albumId } of toUpload) {
         const body = await readFileContent(path);
-        const uploadResponse = await core.apiRequest<string>({
-            url: 'https://photoslibrary.googleapis.com/v1/uploads',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/octet-stream',
-                'X-Goog-Upload-Content-Type': 'image/jpeg',
-                // 'X-Goog-Upload-File-Name': fileName,
-                'X-Goog-Upload-Protocol': 'raw'
-            },
-            body,
-            retry: true,
-        });
-        const uploadToken = uploadResponse.data;
-        uploadedItems.push({
-            path,
-            uploadToken,
-            fileName,
-            albumId
-        });
-        console.log(`Uploaded ${path}`);
+        try {
+            const uploadResponse = await core.apiRequest<string>({
+                url: 'https://photoslibrary.googleapis.com/v1/uploads',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/octet-stream',
+                    'X-Goog-Upload-Content-Type': 'image/jpeg',
+                    // 'X-Goog-Upload-File-Name': fileName,
+                    'X-Goog-Upload-Protocol': 'raw'
+                },
+                body,
+                retry: true,
+            });
+            const uploadToken = uploadResponse.data;
+            uploadedItems.push({
+                path,
+                uploadToken,
+                fileName,
+                albumId
+            });
+            console.log(`Uploaded ${path}`);
+        } catch (error) {
+            if (error.code === '413') {
+                console.log(`Photo ${path} too big to upload. Skipping`);
+                errorStatement.run(error.response.statusText, path);
+            } else {
+                throw error;
+            }
+        }
     }
     console.log(`All items in the batch uploaded, creating media items now`);
 
@@ -408,8 +420,6 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
             },
             retry: true,
         });
-        const successStatement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
-        const errorStatement = core.db.prepare("UPDATE LocalMediaItems SET lastError = ? WHERE path = ?");
 
         for (const itemResult of response.data.newMediaItemResults) {
             if (itemResult.status.message === 'Success' || itemResult.status.message === 'OK') {
