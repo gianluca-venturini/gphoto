@@ -69,8 +69,8 @@ export async function touchGPhotoAlbums(core: Core) {
         });
 
         const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteAlbums(id, title, productUrl, coverPhotoBaseUrl, coverPhotoMediaItemId, isWriteable, mediaItemsCount, lastTouchDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-        response.data.albums?.forEach(album => {
-            statement.run(
+        for (const album of response.data.albums ?? []) {
+            await new Promise((resolve, reject) => statement.run([
                 album.id,
                 album.title,
                 album.productUrl,
@@ -79,8 +79,8 @@ export async function touchGPhotoAlbums(core: Core) {
                 album.isWriteable,
                 album.mediaItemsCount,
                 new Date().toISOString()
-            );
-        });
+            ], err => { if (err) { return reject(err); } resolve(); }));
+        }
         await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 
         if (!response.data.nextPageToken) {
@@ -214,16 +214,16 @@ export async function touchGPhotoMediaItems(core: Core) {
         });
 
         const statement = core.db.prepare("INSERT OR REPLACE INTO RemoteMediaItems(id, description, productUrl, baseUrl, mimeType, fileName) VALUES (?, ?, ?, ?, ?, ?)");
-        response.data.mediaItems?.forEach(mediaItem => {
-            statement.run(
+        for (const mediaItem of response.data.mediaItems ?? []) {
+            await new Promise((resolve, reject) => statement.run([
                 mediaItem.id,
                 mediaItem.description,
                 mediaItem.productUrl,
                 mediaItem.baseUrl,
                 mediaItem.mimeType,
                 mediaItem.filename
-            );
-        });
+            ], err => { if (err) { return reject(err); } resolve(); }));
+        }
         await new Promise((resolve, reject) => statement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 
         if (!response.data.nextPageToken) {
@@ -379,7 +379,7 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
         } catch (error) {
             if (error.code === '413') {
                 console.log(`Photo ${path} too big to upload. Skipping`);
-                errorStatement.run(error.response.statusText, path);
+                await new Promise((resolve, reject) => errorStatement.run([error.response.statusText, path], err => { if (err) { return reject(err); } resolve(); }));
             } else {
                 throw error;
             }
@@ -442,21 +442,21 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
                     }
                 }
 
-                successStatement.run(
+                await new Promise((resolve, reject) => successStatement.run([
                     mediaItem.id,
                     mediaItem.description,
                     mediaItem.productUrl,
                     '', // TODO: add the baseUrl or remove it from the DB schema
                     mediaItem.mimeType,
                     mediaItem.filename
-                );
+                ], err => { if (err) { return reject(err); } resolve(); }));
                 numSuccess += 1;
             } else {
                 numErrors += 1;
-                errorStatement.run(
+                await new Promise((resolve, reject) => errorStatement.run([
                     itemResult.status.message,
                     uploadTokenToPath.get(itemResult.uploadToken),
-                );
+                ], err => { if (err) { return reject(err); } resolve(); }));
             }
         }
         await new Promise((resolve, reject) => errorStatement.finalize(err => { if (err) { return reject(err); } resolve(); }));
