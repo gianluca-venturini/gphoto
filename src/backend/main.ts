@@ -3,7 +3,7 @@ import { initCore, Core } from './core';
 import { ensureDbConnect } from './db';
 import { touchGPhotoAlbums, touchGPhotoMediaItems, ensureGPhotoAlbumsCreated, ensureGPhotoMediaItemsCreated, ensureDeletedAlbums, ensureGoogleApiRequest } from './google';
 import { touchLocalMediaItems } from './local';
-import { RUN_EVERY_MINS } from './env';
+import { RUN_EVERY_MINS, SKIP_LOCAL_SYNC } from './env';
 
 async function start() {
     console.log('Initialize the core');
@@ -29,7 +29,9 @@ async function loop(core: Core) {
     await touchGPhotoAlbums(core);
     await ensureDeletedAlbums(core);
     await touchGPhotoMediaItems(core);
-    await touchLocalMediaItems(core);
+    if (!SKIP_LOCAL_SYNC) {
+        await touchLocalMediaItems(core);
+    }
     await ensureGPhotoAlbumsCreated(core);
     await ensureGPhotoMediaItemsCreated(core);
     // TODO: ensure that no duplicated images are contained in the catalog and repair
