@@ -459,11 +459,11 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
                 ], err => { if (err) { return reject(err); } resolve(); }));
             }
         }
-        await new Promise((resolve, reject) => errorStatement.finalize(err => { if (err) { return reject(err); } resolve(); }));
-        await new Promise((resolve, reject) => successStatement.finalize(err => { if (err) { return reject(err); } resolve(); }));
 
         await new Promise((resolve) => setTimeout(() => resolve(), 200)); // be nice to google
     }
+    await new Promise((resolve, reject) => errorStatement.finalize(err => { if (err) { return reject(err); } resolve(); }));
+    await new Promise((resolve, reject) => successStatement.finalize(err => { if (err) { return reject(err); } resolve(); }));
     console.log('All media items in batch created');
 
     return { numSuccess, numErrors };
