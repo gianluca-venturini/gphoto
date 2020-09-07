@@ -354,8 +354,8 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
     const errorStatement = core.db.prepare("UPDATE LocalMediaItems SET lastError = ? WHERE path = ?");
 
     for (const { fileName, path, albumId } of toUpload) {
-        const body = await readFileContent(path);
         try {
+            const body = await readFileContent(path);
             const uploadResponse = await core.apiRequest<string>({
                 url: 'https://photoslibrary.googleapis.com/v1/uploads',
                 method: 'POST',
@@ -378,8 +378,11 @@ async function ensureGPhotoMediaItemsCreatedBatch(core: Core): Promise<{ numSucc
             console.log(`Uploaded ${path}`);
         } catch (error) {
             if (error.code === '413') {
-                console.log(`Photo ${path} too big to upload. Skipping`);
+                console.log(`Media item ${path} too big for G Photo. Skipping`);
                 await new Promise((resolve, reject) => errorStatement.run([error.response.statusText, path], err => { if (err) { return reject(err); } resolve(); }));
+            } if (error instanceof RangeError) {
+                console.log(`Media item ${path} too big to read in a buffer. Skipping`);
+                await new Promise((resolve, reject) => errorStatement.run(['Read buffer error', path], err => { if (err) { return reject(err); } resolve(); }));
             } else {
                 throw error;
             }
